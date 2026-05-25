@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.shopify
+# App & Local Environment configurations
+.env
+.env.*
+!.env.example
+
+# Sensitive API Keys / Target credentials
+gork api/
+key
+
+# Shopify App CLI & Extension build logs
+.shopify/
+extensions/**/.shopify/
+*.log
+*.toml
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+
+# backend
+batooni-backend/node_modules/
+batooni-backend/.vercel/
+batooni-backend/.env
+batooni-backend/*.json

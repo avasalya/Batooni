@@ -1,0 +1,163 @@
+<div id="shopify-app-batooni-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 2147483647; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <div id="batooni-window" style="width: 360px; height: 480px; background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 16px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.08); display: flex; flex-direction: column; overflow: hidden; margin-bottom: 15px; display: none;">
+    <div style="background: #1C1D1D; color: white; padding: 16px; font-weight: 600; font-size: 15px; display: flex; justify-content: space-between; align-items: center;">
+      <span>Batooni AI Assistant</span>
+      <button id="batooni-clear-btn" style="background: transparent; border: none; color: rgba(255,255,255,0.8); cursor: pointer; font-size: 11px; text-decoration: underline;">Clear Chat</button>
+    </div>
+    <div id="batooni-messages" style="flex: 1; padding: 16px; overflow-y: auto; font-size: 14px; background: rgba(255, 255, 255, 0.2); text-align: left; white-space: pre-line;"></div>
+    <div style="display: flex; gap: 8px; padding: 12px; background: rgba(255, 255, 255, 0.4); border-top: 1px solid rgba(255, 255, 255, 0.2);">
+      <input type="text" id="batooni-input-field" placeholder="Ask Batooni AI anything..." style="flex: 1; border: 1px solid rgba(0, 0, 0, 0.1); background: rgba(255, 255, 255, 0.6); border-radius: 8px; padding: 10px 12px; outline: none; font-size: 14px; color: #202223;">
+      <button id="batooni-send-btn" style="background: #1C1D1D; color: white; border: none; padding: 0 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">Send</button>
+    </div>
+  </div>
+  <button id="batooni-toggle-btn" style="width: 40px; height: 40px; border-radius: 50%; background: #1C1D1D; border: none; color: white; font-size: 18px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; transition: transform 0.2s;">💬</button>
+</div>
+
+<script>
+  (function() {
+  const AI_BACKEND_ENDPOINT = "https://YOUR-VERCEL-BACKEND.vercel.app/api/chat";
+    const STORE_ORIGIN = window.location.origin;
+    const BATOONI_METADATA = [];
+    const BATOONI_PRODUCTS_CACHE = [];
+
+    // Collections
+    {% paginate collections by 250 %}
+      {% for collection in collections %}
+        BATOONI_METADATA.push({ title: {{ collection.title | json }}, type: "Collection/Category/Page", url: `${STORE_ORIGIN}{{ collection.url }}` });
+      {% endfor %}
+    {% endpaginate %}
+
+    // Pages
+    {% for p in pages %}
+      BATOONI_METADATA.push({ title: {{ p.title | json }}, type: "Info Page", url: `${STORE_ORIGIN}{{ p.url }}` });
+    {% endfor %}
+
+    // Blogs
+    {% for article in blogs.news.articles %}
+      BATOONI_METADATA.push({ title: {{ article.title | json }}, type: "Blog Article", url: `${STORE_ORIGIN}{{ article.url }}` });
+    {% endfor %}
+
+    // Shop Policies
+    {% if shop.shipping_policy %} BATOONI_METADATA.push({ title: "Shipping Policy", type: "Policy", url: `${STORE_ORIGIN}{{ shop.shipping_policy.url }}` }); {% endif %}
+    {% if shop.refund_policy %} BATOONI_METADATA.push({ title: "Refund Policy / Returns", type: "Policy", url: `${STORE_ORIGIN}{{ shop.refund_policy.url }}` }); {% endif %}
+    {% if shop.privacy_policy %} BATOONI_METADATA.push({ title: "Privacy Policy", type: "Policy", url: `${STORE_ORIGIN}{{ shop.privacy_policy.url }}` }); {% endif %}
+    {% if shop.terms_of_service %} BATOONI_METADATA.push({ title: "Terms of Service", type: "Policy", url: `${STORE_ORIGIN}{{ shop.terms_of_service.url }}` }); {% endif %}
+
+    async function fetchInventoryCatalog() {
+      try {
+        let page = 1;
+        let keepFetching = true;
+        while (keepFetching && page <= 3) {
+          const response = await fetch(`/products.json?limit=250&page=${page}`);
+          const data = await response.json();
+          if (data && data.products && data.products.length > 0) {
+            data.products.forEach(p => {
+              BATOONI_PRODUCTS_CACHE.push({ title: p.title, url: `${STORE_ORIGIN}/products/${p.handle}` });
+            });
+            page++;
+          } else { keepFetching = false; }
+        }
+      } catch (e) { console.error("Batooni data pull error:", e); }
+    }
+    fetchInventoryCatalog();
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const toggleBtn = document.getElementById("batooni-toggle-btn");
+      const windowEl = document.getElementById("batooni-window");
+      const inputField = document.getElementById("batooni-input-field");
+      const sendBtn = document.getElementById("batooni-send-btn");
+      const messagesEl = document.getElementById("batooni-messages");
+      const clearBtn = document.getElementById("batooni-clear-btn");
+
+      let chatSessionHistory = JSON.parse(sessionStorage.getItem("batooni_chat_session") || "[]");
+      renderStoredHistory();
+
+      function renderStoredHistory() {
+        messagesEl.innerHTML = "";
+        chatSessionHistory.forEach(msg => appendMessageDOM(msg.role, msg.text, false));
+        forceNewTabs();
+        setTimeout(() => { messagesEl.scrollTop = messagesEl.scrollHeight; }, 50);
+      }
+
+      function forceNewTabs() {
+        const links = messagesEl.getElementsByTagName("a");
+        for (let a of links) {
+          a.setAttribute("target", "_blank");
+          a.setAttribute("rel", "noopener noreferrer");
+          a.style.display = "inline-block"; 
+          a.style.marginRight = "8px";
+          a.style.color = "#1C1D1D";
+        }
+      }
+
+      const observer = new MutationObserver(() => { forceNewTabs(); });
+      observer.observe(messagesEl, { childList: true, subtree: true });
+
+      toggleBtn.addEventListener("click", () => {
+        const isHidden = (windowEl.style.display === "none" || windowEl.style.display === "");
+        windowEl.style.display = isHidden ? "flex" : "none";
+      });
+
+      clearBtn.addEventListener("click", () => {
+        sessionStorage.removeItem("batooni_chat_session");
+        chatSessionHistory = [];
+        messagesEl.innerHTML = "";
+      });
+
+      async function handleAISearch() {
+        const query = inputField.value.trim();
+        if (!query) return;
+
+        appendMessageDOM("User", query, true);
+        inputField.value = "";
+        const loadingDiv = appendMessageDOM("Batooni", "Thinking...", false);
+
+        try {
+          const response = await fetch(AI_BACKEND_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              query: query,
+              products: BATOONI_PRODUCTS_CACHE,
+              metadata: BATOONI_METADATA,
+              history: chatSessionHistory.slice(-2)
+            })
+          });
+          const result = await response.json();
+          const finalReply = result.response || result.error;
+          loadingDiv.innerHTML = finalReply;
+          saveMessageToSession("Batooni", finalReply);
+          forceNewTabs();
+        } catch (err) { loadingDiv.innerHTML = `Request timed out. Please try again.`; }
+      }
+
+      sendBtn.addEventListener("click", handleAISearch);
+      inputField.addEventListener("keypress", (e) => { if (e.key === 'Enter') handleAISearch(); });
+
+      function appendMessageDOM(sender, text, shouldSave) {
+        const msg = document.createElement("div");
+        msg.style.marginBottom = "14px";
+        msg.style.lineHeight = "1.5";
+        msg.style.fontSize = "14px";
+        if (sender === "User") {
+          msg.style.textAlign = "right";
+          msg.innerHTML = `<span style="display: inline-block; background: rgba(28, 29, 29, 0.08); padding: 8px 12px; border-radius: 12px 12px 0 12px; color: #202223; max-width: 85%; word-break: break-word;">${text}</span>`;
+        } else {
+          msg.style.textAlign = "left";
+          msg.innerHTML = `<div style="background: rgba(255, 255, 255, 0.6); padding: 10px 14px; border-radius: 12px 12px 12px 0; border: 1px solid rgba(255,255,255,0.5); color: #202223; max-width: 85%; word-break: break-word; color:#1C1D1D;">${text}</div>`;
+        }
+        messagesEl.appendChild(msg);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        if (shouldSave) { saveMessageToSession(sender, text); }
+        return msg;
+      }
+
+      function saveMessageToSession(sender, text) {
+        chatSessionHistory.push({ role: sender, text: text });
+        sessionStorage.setItem("batooni_chat_session", JSON.stringify(chatSessionHistory));
+      }
+    });
+  })();
+</script>
+
+{% schema %} { "name": "Batooni AI Assistant", "target": "body", "settings": [] } {% endschema %}
