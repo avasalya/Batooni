@@ -2,6 +2,9 @@
 
 Batooni is an open-source, token-optimized AI Shopping Assistant designed for Shopify stores. It features a lightweight Shopify Theme App Extension frontend and a high-performance, serverless Node.js backend hosted on Vercel that interacts with Groq's high-speed LLM models.
 
+
+![alt text](image.png)
+![alt text](image-1.png)
 ---
 
 # 🏗️ Repository Layout
@@ -19,6 +22,63 @@ Batooni is an open-source, token-optimized AI Shopping Assistant designed for Sh
 ```
 
 ---
+
+
+## 🚀 Key Architectural Features
+
+### Zero-Latency Event Logging
+The backend utilizes native runtime streams to securely log user sessions, message payload metadata, and alphanumeric tracking tags (`usr_...`). This structure isolates tracking data asynchronously, ensuring serverless Vercel execution loops never hit sudden operational timeouts.
+
+### Aggressive Context Compaction
+To operate efficiently within live network traffic limits, the frontend relies on session memory parameters (`sessionStorage`) while the backend applies strict array truncation filters (`.slice(-2)`). This design keeps message arrays lightweight and prevents standard platform token overflow failures during long chat sessions.
+
+### Deterministic Output Controls
+The system prompt is engineered to suppress standard conversational formatting, greetings, and introductory/explanatory statements completely. The LLM functions as an extraction processor, returning raw data arrays or HTML components directly.
+
+---
+
+## ✅ What Batooni CAN Do
+
+### Dynamic Context Injection
+The frontend crawls active store data arrays locally using native Liquid loops (`collections`, `pages`, `blogs`, and `shop.policies`), building a live text reference map dynamically inside browser memory.
+
+### Dynamic Intent Separation
+The backend parses conversational requests into root keyword strings and automatically separates informational intent (`shipping`, `returns`, `brand values`, etc.) from explicit shopping/catalog intent.
+
+### Token-Safe Inventory Optimization
+If a customer searches for specific product lines, the system matches search terms against cached item manifests and truncates product response contexts to a safe boundary (maximum `25` products) to remain within LLM token constraints.
+
+### Uniform UI Render Injections
+Batooni bypasses standard markdown rendering and outputs native HTML anchor objects with static inline CSS styling:
+
+
+### Automated Failure Mitigation
+
+If a visitor submits a completely abstract query that yields zero internal matches, Rule 4 triggers an automated fallback routine. The system maps extracted tracking terms into a fallback search query (/search?q=...) and retrieves the top 3 live items automatically, preventing unhandled exception states.
+
+# ❌ What Batooni CANNOT Do
+### No Price or Transaction Processing
+  Per Rule 6 constraints, Batooni is explicitly blocked from appending:
+Product pricing
+Inventory counts
+Currency metadata
+Checkout-related transaction data
+
+###  No Out-Of-Store Creative Knowledge
+  Batooni functions strictly as an extraction layer. It cannot:
+Generate original marketing copy
+Make assumptions about the business
+Answer unrelated general-knowledge questions
+
+###  No Multi-Turn Context Memory
+  Because backend tracking logs are aggressively truncated using .slice(-2), the assistant only retains:
+The user's most recent message
+The assistant's most recent response
+
+Conversation details older than two interaction frames are discarded.
+
+No Real-Time Server-Side Data Ingestion
+  Store data arrays are generated once during storefront initialization in the visitor’s browser tab. If a product price, policy page, or collection changes inside Shopify, Batooni will not detect the update until the visitor refreshes the browser tab.
 
 # ⚙️ Required Setup & Accounts
 
